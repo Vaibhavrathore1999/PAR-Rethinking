@@ -1,0 +1,17 @@
+# Byte-compiled / cache
+__pycache__/
+*.pyc
+
+# Experiment outputs
+exp_result/
+
+# Text or data files
+*.txt
+*.xml
+
+# IDE and editor configs
+.idea/
+.vscode/
+
+# Datasets
+data/
