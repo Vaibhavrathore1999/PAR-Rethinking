@@ -1,0 +1,21 @@
+2025-11-03 11:13:28,194 INFO    MainThread:3563185 [wandb_setup.py:_flush():81] Current SDK version is 0.22.3
+2025-11-03 11:13:28,194 INFO    MainThread:3563185 [wandb_setup.py:_flush():81] Configure stats pid to 3563185
+2025-11-03 11:13:28,194 INFO    MainThread:3563185 [wandb_setup.py:_flush():81] Loading settings from /users/student/pg/pg23/vaibhav.rathore/.config/wandb/settings
+2025-11-03 11:13:28,194 INFO    MainThread:3563185 [wandb_setup.py:_flush():81] Loading settings from /users/student/pg/pg23/vaibhav.rathore/PAR/Rethinking_of_PAR/wandb/settings
+2025-11-03 11:13:28,194 INFO    MainThread:3563185 [wandb_setup.py:_flush():81] Loading settings from environment variables
+2025-11-03 11:13:28,194 INFO    MainThread:3563185 [wandb_init.py:setup_run_log_directory():706] Logging user logs to /users/student/pg/pg23/vaibhav.rathore/PAR/Rethinking_of_PAR/wandb/run-20251103_111328-qd6qfd49/logs/debug.log
+2025-11-03 11:13:28,194 INFO    MainThread:3563185 [wandb_init.py:setup_run_log_directory():707] Logging internal logs to /users/student/pg/pg23/vaibhav.rathore/PAR/Rethinking_of_PAR/wandb/run-20251103_111328-qd6qfd49/logs/debug-internal.log
+2025-11-03 11:13:28,194 INFO    MainThread:3563185 [wandb_init.py:init():833] calling init triggers
+2025-11-03 11:13:28,194 INFO    MainThread:3563185 [wandb_init.py:init():838] wandb.init called with sweep_config: {}
+config: {'NAME': 'vit_b.adam', 'REDIRECTOR': True, 'RELOAD': CfgNode({'TYPE': False, 'NAME': 'backbone', 'PTH': ''}), 'DISTRIBUTTED': False, 'DATASET': CfgNode({'TYPE': 'pedes', 'NAME': 'PA100k', 'TARGETTRANSFORM': [], 'ZERO_SHOT': False, 'LABEL': 'eval', 'TRAIN_SPLIT': 'trainval', 'VAL_SPLIT': 'test', 'TEST_SPLIT': 'test', 'HEIGHT': 224, 'WIDTH': 224, 'ROOT': '/janaki/backup/users/student/pg/pg23/vaibhav.rathore/datasets/PA-100K'}), 'BACKBONE': CfgNode({'TYPE': 'vit_b', 'MULTISCALE': False, 'PRETRAINED': ''}), 'CLASSIFIER': CfgNode({'TYPE': 'base', 'NAME': 'linear', 'POOLING': 'avg', 'BN': False, 'SCALE': 1}), 'TRAIN': CfgNode({'BATCH_SIZE': 64, 'MAX_EPOCH': 30, 'SHUFFLE': True, 'NUM_WORKERS': 4, 'CLIP_GRAD': True, 'BN_WD': True, 'DATAAUG': CfgNode({'TYPE': 'base', 'AUTOAUG_PROB': 0.5}), 'EMA': CfgNode({'ENABLE': True, 'DECAY': 0.9998, 'FORCE_CPU': False}), 'OPTIMIZER': CfgNode({'TYPE': 'adam', 'MOMENTUM': 0.9, 'WEIGHT_DECAY': 0.0005}), 'LR_SCHEDULER': CfgNode({'TYPE': 'plateau', 'LR_STEP': [7], 'LR_FT': 0.0001, 'LR_NEW': 0.0001, 'WMUP_COEF': 0.1}), 'AUX_LOSS_START': -1}), 'INFER': CfgNode({'SAMPLING': False}), 'LOSS': CfgNode({'TYPE': 'bceloss', 'SAMPLE_WEIGHT': 'weight', 'LOSS_WEIGHT': [1], 'SIZESUM': True}), 'METRIC': CfgNode({'TYPE': 'pedestrian'}), 'VIS': CfgNode({'CAM': 'valid', 'TENSORBOARD': CfgNode({'ENABLE': True}), 'VISDOM': False}), 'TRANS': CfgNode({'DIM_HIDDEN': 256, 'DROPOUT': 0.1, 'NHEADS': 8, 'DIM_FFD': 2048, 'ENC_LAYERS': 6, 'DEC_LAYERS': 6, 'PRE_NORM': False, 'EOS_COEF': 0.1, 'NUM_QUERIES': 100}), '_wandb': {}}
+2025-11-03 11:13:28,194 INFO    MainThread:3563185 [wandb_init.py:init():881] starting backend
+2025-11-03 11:13:28,399 INFO    MainThread:3563185 [wandb_init.py:init():884] sending inform_init request
+2025-11-03 11:13:28,403 INFO    MainThread:3563185 [wandb_init.py:init():892] backend started and connected
+2025-11-03 11:13:28,404 INFO    MainThread:3563185 [wandb_init.py:init():962] updated telemetry
+2025-11-03 11:13:28,407 INFO    MainThread:3563185 [wandb_init.py:init():986] communicating run to backend with 90.0 second timeout
+2025-11-03 11:13:29,212 INFO    MainThread:3563185 [wandb_init.py:init():1033] starting run threads in backend
+2025-11-03 11:13:29,345 INFO    MainThread:3563185 [wandb_run.py:_console_start():2506] atexit reg
+2025-11-03 11:13:29,345 INFO    MainThread:3563185 [wandb_run.py:_redirect():2354] redirect: wrap_raw
+2025-11-03 11:13:29,345 INFO    MainThread:3563185 [wandb_run.py:_redirect():2423] Wrapping output streams.
+2025-11-03 11:13:29,345 INFO    MainThread:3563185 [wandb_run.py:_redirect():2446] Redirects installed.
+2025-11-03 11:13:29,348 INFO    MainThread:3563185 [wandb_init.py:init():1073] run started, returning control to user process

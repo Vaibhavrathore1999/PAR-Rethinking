@@ -18,7 +18,7 @@ def build_backbone(key, multi_scale=False):
         'bninception': 1024,
         'tresnetM': 2048,
         'tresnetL': 2048,
-
+        'convnext_base': 1024,
     }
 
     model = BACKBONE[key]()

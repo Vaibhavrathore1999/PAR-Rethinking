@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import trunc_normal_, DropPath
 from timm.models.registry import register_model
+from models.registry import BACKBONE
 
 class Block(nn.Module):
     r""" ConvNeXt Block. There are two equivalent implementations:
@@ -159,13 +160,34 @@ model_urls = {
 }
 
 @register_model
-def convnext_tiny(pretrained=True,in_22k=False, **kwargs):
+@BACKBONE.register('convnext_tiny')
+def convnext_tiny(pretrained=True, in_22k=False, **kwargs):
     model = ConvNeXt(depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], **kwargs)
     if pretrained:
         url = model_urls['convnext_tiny_22k'] if in_22k else model_urls['convnext_tiny_1k']
         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", check_hash=True)
         model.load_state_dict(checkpoint["model"])
     return model
+
+
+@register_model
+@BACKBONE.register('convnext_base')
+def convnext_base(pretrained=True, in_22k=True, **kwargs):
+    model = ConvNeXt(depths=[3, 3, 27, 3], dims=[128, 256, 512, 1024], **kwargs)
+    if pretrained:
+        url = model_urls['convnext_base_22k'] if in_22k else model_urls['convnext_base_1k']
+        checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu")
+        model.load_state_dict(remove_fc(checkpoint["model"]))
+    return model
+
+# @register_model
+# def convnext_tiny(pretrained=True,in_22k=False, **kwargs):
+#     model = ConvNeXt(depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], **kwargs)
+#     if pretrained:
+#         url = model_urls['convnext_tiny_22k'] if in_22k else model_urls['convnext_tiny_1k']
+#         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", check_hash=True)
+#         model.load_state_dict(checkpoint["model"])
+#     return model
 
 @register_model
 def convnext_small(pretrained=True,in_22k=False, **kwargs):
@@ -176,14 +198,14 @@ def convnext_small(pretrained=True,in_22k=False, **kwargs):
         model.load_state_dict(checkpoint["model"])
     return model
 
-@register_model
-def convnext_base(pretrained=True, in_22k=True, **kwargs):
-    model = ConvNeXt(depths=[3, 3, 27, 3], dims=[128, 256, 512, 1024], **kwargs)
-    if pretrained:
-        url = model_urls['convnext_base_22k'] if in_22k else model_urls['convnext_base_1k']
-        checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu")
-        model.load_state_dict(remove_fc(checkpoint["model"]))
-    return model
+# @register_model
+# def convnext_base(pretrained=True, in_22k=True, **kwargs):
+#     model = ConvNeXt(depths=[3, 3, 27, 3], dims=[128, 256, 512, 1024], **kwargs)
+#     if pretrained:
+#         url = model_urls['convnext_base_22k'] if in_22k else model_urls['convnext_base_1k']
+#         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu")
+#         model.load_state_dict(remove_fc(checkpoint["model"]))
+#     return model
 
 @register_model
 def convnext_large(pretrained=True, in_22k=False, **kwargs):

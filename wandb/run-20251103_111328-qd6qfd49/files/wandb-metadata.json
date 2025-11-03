@@ -1,0 +1,93 @@
+{
+  "os":  "Linux-6.8.0-85-generic-x86_64-with-glibc2.39",
+  "python":  "CPython 3.10.19",
+  "startedAt":  "2025-11-03T05:43:28.193714Z",
+  "args":  [
+    "--cfg",
+    "./configs/pedes_baseline/pa100k.yaml"
+  ],
+  "program":  "/users/student/pg/pg23/vaibhav.rathore/PAR/Rethinking_of_PAR/train_wandb.py",
+  "codePath":  "train_wandb.py",
+  "codePathLocal":  "train_wandb.py",
+  "git":  {
+    "remote":  "https://github.com/Vaibhavrathore1999/PAR-Rethinking.git",
+    "commit":  "a7a8216d83a9342fdcd01ca5b45dd2c9fba5c8d9"
+  },
+  "email":  "23m2156@iitb.ac.in",
+  "root":  "/users/student/pg/pg23/vaibhav.rathore/PAR/Rethinking_of_PAR",
+  "host":  "anandi",
+  "executable":  "/users/student/pg/pg23/vaibhav.rathore/.conda/envs/par/bin/python",
+  "cpu_count":  32,
+  "cpu_count_logical":  64,
+  "gpu":  "NVIDIA L40S",
+  "gpu_count":  8,
+  "disk":  {
+    "/":  {
+      "total":  "3776106151936",
+      "used":  "280814964736"
+    }
+  },
+  "memory":  {
+    "total":  "540713660416"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA L40S",
+      "memoryTotal":  "48305799168",
+      "cudaCores":  18176,
+      "architecture":  "Ada",
+      "uuid":  "GPU-f38a19db-8111-da9c-3780-2d59a4feede2"
+    },
+    {
+      "name":  "NVIDIA L40S",
+      "memoryTotal":  "48305799168",
+      "cudaCores":  18176,
+      "architecture":  "Ada",
+      "uuid":  "GPU-05d9fb1c-0b43-320e-3e52-020db33dfd6f"
+    },
+    {
+      "name":  "NVIDIA L40S",
+      "memoryTotal":  "48305799168",
+      "cudaCores":  18176,
+      "architecture":  "Ada",
+      "uuid":  "GPU-5a146c4a-be5d-47f6-cbd9-ecd517381072"
+    },
+    {
+      "name":  "NVIDIA L40S",
+      "memoryTotal":  "48305799168",
+      "cudaCores":  18176,
+      "architecture":  "Ada",
+      "uuid":  "GPU-323c394a-4105-b2ed-de2b-40c883364bcf"
+    },
+    {
+      "name":  "NVIDIA L40S",
+      "memoryTotal":  "48305799168",
+      "cudaCores":  18176,
+      "architecture":  "Ada",
+      "uuid":  "GPU-98a82346-0f77-7733-30b0-9d3b28612dc6"
+    },
+    {
+      "name":  "NVIDIA L40S",
+      "memoryTotal":  "48305799168",
+      "cudaCores":  18176,
+      "architecture":  "Ada",
+      "uuid":  "GPU-3ae6096d-e245-24e5-db50-82d9268a4d0f"
+    },
+    {
+      "name":  "NVIDIA L40S",
+      "memoryTotal":  "48305799168",
+      "cudaCores":  18176,
+      "architecture":  "Ada",
+      "uuid":  "GPU-3731f7c3-9ffa-2bab-0f43-634d0e4505a1"
+    },
+    {
+      "name":  "NVIDIA L40S",
+      "memoryTotal":  "48305799168",
+      "cudaCores":  18176,
+      "architecture":  "Ada",
+      "uuid":  "GPU-f371cd56-5c48-b3cd-94ce-7307a9b2cc7f"
+    }
+  ],
+  "cudaVersion":  "12.6",
+  "writerId":  "r4zpyxhsh0fmy0ycpnvz7b9w5n3z6kcr"
+}

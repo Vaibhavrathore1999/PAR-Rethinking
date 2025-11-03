@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 
 import argparse
 import pickle
@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import datetime
 
 import numpy as np
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter # Comment out or remove this line
 import shutil
 from configs import cfg, update_config
 from dataset.augmentation import get_transform
@@ -33,11 +33,13 @@ from models.backbone import swin_transformer, resnet, bninception, vit
 from losses import bceloss, scaledbceloss
 from models import base_block
 
+import wandb # Import wandb
+
 # torch.backends.cudnn.benchmark = True
 torch.autograd.set_detect_anomaly(True)
 
 def main(cfg, args):
-    
+
     set_seed(605)
     exp_dir = os.path.join('exp_result', cfg.DATASET.NAME)
 
@@ -45,12 +47,16 @@ def main(cfg, args):
     stdout_file = os.path.join(log_dir, f'stdout_{time_str()}.txt')
     save_model_path = os.path.join(model_dir, f'ckpt_max_{time_str()}.pth')
 
-    writer = None
-    if cfg.VIS.TENSORBOARD.ENABLE:
-        
-        current_time = datetime.now().strftime('%b%d_%H-%M-%S')
-        writer_dir = os.path.join(exp_dir, cfg.NAME, 'runs', current_time)
-        writer = SummaryWriter(log_dir=writer_dir)
+    # Initialize wandb
+    wandb.init(project="pedestrian_attribute_recognition", config=cfg) # You can customize project name
+    # wandb.run.name = cfg.NAME # Optional: Set run name
+
+    # writer = None # No longer needed if using wandb instead of SummaryWriter
+    # if cfg.VIS.TENSORBOARD.ENABLE:
+    #
+    #     current_time = datetime.now().strftime('%b%d_%H-%M-%S')
+    #     writer_dir = os.path.join(exp_dir, cfg.NAME, 'runs', current_time)
+    #     writer = SummaryWriter(log_dir=writer_dir)
 
     if cfg.REDIRECTOR:
         print('redirector stdout')
@@ -60,7 +66,7 @@ def main(cfg, args):
 
     args.world_size = 1
     args.rank = 0  # global rank
-    
+
     train_tsfm, valid_tsfm = get_transform(cfg)
 
     train_set = PedesAttr(cfg=cfg, split=cfg.DATASET.TRAIN_SPLIT, transform=train_tsfm,
@@ -68,10 +74,10 @@ def main(cfg, args):
 
     valid_set = PedesAttr(cfg=cfg, split=cfg.DATASET.VAL_SPLIT, transform=valid_tsfm,
                             target_transform=cfg.DATASET.TARGETTRANSFORM)
-    
+
     print(cfg)
     print(train_tsfm)
-    
+
     train_sampler = None
 
     train_loader = DataLoader(
@@ -101,16 +107,16 @@ def main(cfg, args):
 
     labels = train_set.label
     label_ratio = labels.mean(0) if cfg.LOSS.SAMPLE_WEIGHT else None
-    
+
     if cfg.BACKBONE.TYPE == 'convnext':
         backbone = convnext_base()
         c_output = 1024
     else:
         backbone, c_output = build_backbone(cfg.BACKBONE.TYPE, cfg.BACKBONE.MULTISCALE)
-    
+
     classifier = Classifier(c_output, train_set.attr_num, cfg.BACKBONE.TYPE)
     model = Network(backbone, classifier)
-    
+
     model = model.cuda()
     model = torch.nn.DataParallel(model)
 
@@ -119,9 +125,9 @@ def main(cfg, args):
     loss_weight = cfg.LOSS.LOSS_WEIGHT
 
     criterion = build_loss(cfg.LOSS.TYPE)(
-        sample_weight=label_ratio, scale=cfg.CLASSIFIER.SCALE, size_sum=cfg.LOSS.SIZESUM, tb_writer=writer)
+        sample_weight=label_ratio, scale=cfg.CLASSIFIER.SCALE, size_sum=cfg.LOSS.SIZESUM, tb_writer=None) # tb_writer=None
     criterion = criterion.cuda()
-       
+
     param_groups = [{'params': model.module.backbone.parameters(),
                        'lr': cfg.TRAIN.LR_SCHEDULER.LR_FT,
                        'weight_decay': cfg.TRAIN.OPTIMIZER.WEIGHT_DECAY},
@@ -174,13 +180,15 @@ def main(cfg, args):
                                  lr_scheduler=lr_scheduler,
                                  path=save_model_path,
                                  loss_w=loss_weight,
-                                 tb_writer=writer)
+                                 tb_writer=None) # Set tb_writer to None
+
     if args.local_rank == 0:
         print(f'{cfg.NAME},  best_metrc : {best_metric} in epoch{epoch}')
 
+    wandb.finish() # Finish the wandb run
 
 def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, criterion, optimizer, lr_scheduler,
-            path, loss_w, tb_writer):
+            path, loss_w, tb_writer): # tb_writer is no longer used, but keeping for compatibility
     maximum = float(-np.inf)
     best_epoch = 0
 
@@ -191,7 +199,7 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
     result_path = result_path.replace('pth', 'pkl')
 
     for e in range(epoch):
-        
+
         lr = optimizer.param_groups[1]['lr']
 
         train_loss, train_gt, train_probs, train_imgs, train_logits, train_loss_mtr = batch_trainer(
@@ -250,11 +258,37 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
             print(f'{time_str()}')
             print('-' * 60)
 
+            # Log metrics to Weights & Biases
+            wandb.log({
+                "epoch": e,
+                "learning_rate": lr,
+                "train_loss": train_loss,
+                "train_ma": train_result.ma,
+                "train_label_f1": np.mean(train_result.label_f1),
+                "train_pos_recall": np.mean(train_result.label_pos_recall),
+                "train_neg_recall": np.mean(train_result.label_neg_recall),
+                "train_instance_acc": train_result.instance_acc,
+                "train_instance_prec": train_result.instance_prec,
+                "train_instance_recall": train_result.instance_recall,
+                "train_instance_f1": train_result.instance_f1,
+                "valid_loss": valid_loss,
+                "valid_ma": valid_result.ma,
+                "valid_label_f1": np.mean(valid_result.label_f1),
+                "valid_pos_recall": np.mean(valid_result.label_pos_recall),
+                "valid_neg_recall": np.mean(valid_result.label_neg_recall),
+                "valid_instance_acc": valid_result.instance_acc,
+                "valid_instance_prec": valid_result.instance_prec,
+                "valid_instance_recall": valid_result.instance_recall,
+                "valid_instance_f1": valid_result.instance_f1,
+            })
+
         cur_metric = valid_result.ma
         if cur_metric > maximum:
             maximum = cur_metric
             best_epoch = e
             save_ckpt(model, path, e, maximum)
+            # You might want to log the best model to wandb
+            # wandb.save(path) # This saves the file to wandb servers
 
         result_list[e] = {
             'train_result': train_result,  # 'train_map': train_map,

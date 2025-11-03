@@ -1,4 +1,4 @@
-NAME: 'resnet50.base.adam'
+NAME: 'vit_b.adam'
 
 DATASET:
   ROOT: '/janaki/backup/users/student/pg/pg23/vaibhav.rathore/datasets/PA-100K'
@@ -8,20 +8,35 @@ DATASET:
   VAL_SPLIT: 'test'
   ZERO_SHOT: False
   LABEL: 'eval'
-  HEIGHT: 256
-  WIDTH: 192
+  HEIGHT: 224       # For vit_b use 224
+  # HEIGHT: 256
+  # WIDTH: 192
+  WIDTH: 224       # For vit_b use 224
 
 RELOAD:
   TYPE: False
   NAME: 'backbone'
 
 BACKBONE:
-  TYPE: 'resnet50'
+  # TYPE: 'resnet50'
 #  TYPE: 'bninception'
 #  TYPE: 'tresnetM'
 #  TYPE: 'swin_s'
-#  TYPE: 'vit_s'
-#  TYPE: 'vit_b'
+  # TYPE: 'vit_s'
+  # TYPE: 'convnext_base'
+  TYPE: 'vit_b'
+#  TYPE: 'resnet34'
+#  TYPE: 'resnet18': 512,
+#  TYPE: 'resnet50': 2048,
+#  TYPE: 'resnet101': 2048,
+#  TYPE: 'tresnet': 2432,
+#  TYPE: 'swin_s': 768,
+#  TYPE: 'swin_b': 1024,
+#  TYPE: 'vit_s': 768,
+#  TYPE: 'vit_b': 768,
+#  TYPE: 'bninception': 1024,
+#  TYPE: 'tresnetM': 2048,
+#  TYPE: 'tresnetL': 2048,
 
 CLASSIFIER:
   NAME: 'linear'
@@ -42,6 +57,10 @@ TRAIN:
     TYPE: 'adam'
     WEIGHT_DECAY: 5e-4
   LR_SCHEDULER:
+    #for resnet50
+    LR_STEP: [7]
+    #for convnext
+    # LR_STEP: [1]
     TYPE: 'plateau'
     LR_FT: 0.0001
     LR_NEW: 0.0001

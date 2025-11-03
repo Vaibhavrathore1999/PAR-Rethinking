@@ -20,7 +20,7 @@ for some einops/einsum fun
 
 Hacked together by / Copyright 2020 Ross Wightman
 """
-import math
+import math,os
 from functools import partial
 from itertools import repeat
 
@@ -335,30 +335,75 @@ class VisionTransformer(nn.Module):
         # return x[:, :self.nattr]
         return x[:, 1:]
 
+# @BACKBONE.register("vit_s")
+# def vit_small_patch16_224(nattr=1, pretrained=True, **kwargs):
+#     if pretrained:
+#         # NOTE my scale was wrong for original weights, leaving this here until I have better ones for this model
+#         kwargs.setdefault('qk_scale', 768 ** -0.5)
+#     model = VisionTransformer(nattr, img_size=(256, 192), patch_size=16, embed_dim=768, depth=8, num_heads=8, mlp_ratio=3.,
+#                               **kwargs)
+#     model.default_cfg = default_cfgs['vit_small_patch16_224']
+#     if pretrained:
+#         load_pretrained(
+#             model,
+#             pretrain='/mnt/data1/jiajian/code/checkpoints/vit_small_p16_224-15ec54c9.pth',)
+#     return model
+
+import timm
+import torch.nn as nn
+
 @BACKBONE.register("vit_s")
-def vit_small_patch16_224(nattr=1, pretrained=True, **kwargs):
-    if pretrained:
-        # NOTE my scale was wrong for original weights, leaving this here until I have better ones for this model
-        kwargs.setdefault('qk_scale', 768 ** -0.5)
-    model = VisionTransformer(nattr, img_size=(256, 192), patch_size=16, embed_dim=768, depth=8, num_heads=8, mlp_ratio=3.,
-                              **kwargs)
-    model.default_cfg = default_cfgs['vit_small_patch16_224']
-    if pretrained:
-        load_pretrained(
-            model,
-            pretrain='/mnt/data1/jiajian/code/checkpoints/vit_small_p16_224-15ec54c9.pth',)
+def vit_s(pretrained=True, **kwargs):
+    model = timm.create_model('vit_small_patch16_224', pretrained=pretrained)
+    # Remove classification head if not needed
+    model.head = nn.Identity()
     return model
 
+# @BACKBONE.register("vit_b")
+# def vit_base_patch16_224(nattr=1, pretrained=True, **kwargs):
+#     model = VisionTransformer(nattr, img_size=(256, 192), patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
+#         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+#     model.default_cfg = default_cfgs['vit_base_patch16_224']
+#     if pretrained:
+#         load_pretrained(
+#             model,
+#             pretrain='/users/student/pg/pg23/vaibhav.rathore/PAR/Rethinking_of_PAR/checkpoints/vit_b_16_imagenet1k_v1.pth',)
+#     return model
+
 @BACKBONE.register("vit_b")
-def vit_base_patch16_224(nattr=1, pretrained=True, **kwargs):
-    model = VisionTransformer(nattr, img_size=(256, 192), patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
-    model.default_cfg = default_cfgs['vit_base_patch16_224']
-    if pretrained:
-        load_pretrained(
-            model,
-            pretrain='/mnt/data1/jiajian/code/checkpoints/jx_vit_base_p16_224-80ecf9dd.pth',)
+def vit_b(pretrained=True, **kwargs):
+    model = timm.create_model('vit_base_patch16_224', pretrained=pretrained)
+    # Remove classification head if not needed
+    model.head = nn.Identity()
     return model
+
+# @BACKBONE.register("vit_b")
+# def vit_base_patch16_224(nattr=1, pretrained=True, pretrain_path=None, **kwargs):
+#     """
+#     Vision Transformer Base (ViT-B/16) backbone.
+#     Automatically loads pretrained weights from the path provided in the config (YAML).
+#     """
+#     model = VisionTransformer(
+#         nattr,
+#         img_size=(256, 192),
+#         patch_size=16,
+#         embed_dim=768,
+#         depth=12,
+#         num_heads=12,
+#         mlp_ratio=4,
+#         qkv_bias=True,
+#         norm_layer=partial(nn.LayerNorm, eps=1e-6),
+#         **kwargs
+#     )
+#     model.default_cfg = default_cfgs['vit_base_patch16_224']
+
+#     if pretrained:
+#         if pretrain_path is not None and os.path.isfile(pretrain_path):
+#             print(f"✅ Loading pretrained ViT-B/16 weights from {pretrain_path}")
+#             load_pretrained(model, pretrain_path)
+#         else:
+#             print("⚠️ Pretrained=True but no valid checkpoint path provided — using random init.")
+#     return model
 
 
 # def vit_base_patch16_384(pretrained=False, **kwargs):
@@ -426,8 +471,10 @@ def vit_base_patch16_224(nattr=1, pretrained=True, **kwargs):
 def load_pretrained(model, pretrain, strict=True):
     state_dict = torch.load(pretrain, map_location='cpu')
 
-    del state_dict["head.weight"]
-    del state_dict["head.bias"]
+    # Safely remove classification head if present
+    for key in ["head.weight", "head.bias"]:
+        if key in state_dict:
+            del state_dict[key]
 
     for k, v in state_dict.items():
         if 'patch_embed.proj.weight' in k and len(v.shape) < 4:
