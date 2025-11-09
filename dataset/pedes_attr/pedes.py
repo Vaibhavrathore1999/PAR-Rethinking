@@ -13,7 +13,7 @@ class PedesAttr(data.Dataset):
 
     def __init__(self, cfg, split, transform=None, target_transform=None, idx=None):
 
-        assert cfg.DATASET.NAME in ['PETA', 'PA100k', 'RAP', 'RAP2'], \
+        assert cfg.DATASET.NAME in ['PETA', 'PA100k', 'RAP', 'RAP2', 'VRLChallenge_2'], \
             f'dataset name {cfg.DATASET.NAME} is not exist'
 
         data_path = get_pkl_rootpath(cfg.DATASET.NAME, cfg.DATASET.ZERO_SHOT)
@@ -67,6 +67,12 @@ class PedesAttr(data.Dataset):
 
         if isinstance(self.img_idx, list):
             self.img_idx = self.img_idx[0]  # default partition 0
+            
+        # # ADD THIS BLOCK TO HANDLE THE INTEGER CASE
+        # if isinstance(self.img_idx, int):
+        #     # If img_idx is an integer, assume it's the number of images
+        #     # and generate a range of indices.
+        #     self.img_idx = np.arange(self.img_idx)
 
         if idx is not None:
             self.img_idx = idx

@@ -1,9 +1,9 @@
-NAME: 'vit_b.adam'
+NAME: 'convnext_base_VRL_Challenge'
 
 DATASET:
-  ROOT: '/janaki/backup/users/student/pg/pg23/vaibhav.rathore/datasets/PA-100K'
+  ROOT: '/janaki/backup/users/student/pg/pg23/vaibhav.rathore/datasets/VRLChallenge_2'
   TYPE: 'pedes'
-  NAME: 'PA100k'
+  NAME: 'VRLChallenge_2'
   TRAIN_SPLIT: 'trainval'
   VAL_SPLIT: 'test'
   ZERO_SHOT: False

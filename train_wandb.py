@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import datetime
 
 import numpy as np
-# from torch.utils.tensorboard import SummaryWriter # Comment out or remove this line
+# from torch.utils.tensorboard import SummaryWriter 
 import shutil
 from configs import cfg, update_config
 from dataset.augmentation import get_transform
@@ -234,6 +234,27 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
 
         train_result = get_pedestrian_metrics(train_gt, train_probs, index=None, cfg=cfg)
         valid_result = get_pedestrian_metrics(valid_gt, valid_probs, index=None, cfg=cfg)
+        # --- Individual Attribute Accuracy Analysis ---
+        attr_accuracies = valid_result.label_acc
+        attr_f1 = valid_result.label_f1
+        attr_pos_recall = valid_result.label_pos_recall
+        attr_neg_recall = valid_result.label_neg_recall
+        attr_ma = valid_result.label_ma
+
+        # Try to get attribute names from dataset
+        if hasattr(train_loader.dataset, "attr_name"):
+            attr_names = train_loader.dataset.attr_name
+        else:
+            attr_names = [f"attr_{i}" for i in range(len(attr_accuracies))]
+
+        # Log per-attribute metrics to wandb
+        for name, acc, f1, ma in zip(attr_names, attr_accuracies, attr_f1, attr_ma):
+            wandb.log({
+                "epoch": e,
+                f"valid/acc_{name}": acc,
+                f"valid/f1_{name}": f1,
+                f"valid/ma_{name}": ma,
+            })
 
         if args.local_rank == 0:
             print(f'Evaluation on train set, train losses {train_loss}\n',
