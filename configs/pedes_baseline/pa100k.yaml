@@ -1,4 +1,4 @@
-NAME: 'vit_b.adam'
+NAME: 'convnext_base_pa100k_baseline'
 
 DATASET:
   ROOT: '/janaki/backup/users/student/pg/pg23/vaibhav.rathore/datasets/PA-100K'

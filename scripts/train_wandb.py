@@ -48,7 +48,7 @@ def main(cfg, args):
     save_model_path = os.path.join(model_dir, f'ckpt_max_{time_str()}.pth')
 
     # Initialize wandb
-    wandb.init(project="pedestrian_attribute_recognition", config=cfg) # You can customize project name
+    wandb.init(project="pedestrian_attribute_recognition", config=cfg) 
     # wandb.run.name = cfg.NAME # Optional: Set run name
 
     # writer = None # No longer needed if using wandb instead of SummaryWriter
@@ -74,7 +74,24 @@ def main(cfg, args):
 
     valid_set = PedesAttr(cfg=cfg, split=cfg.DATASET.VAL_SPLIT, transform=valid_tsfm,
                             target_transform=cfg.DATASET.TARGETTRANSFORM)
+    # Get all labels from the training set
+    all_labels = train_set.label
 
+    # Calculate the frequency of each attribute
+    # This gives the percentage of positive samples for each attribute
+    attribute_frequencies = np.mean(all_labels, axis=0)
+
+    # Get attribute names if available
+    if hasattr(train_set, "attr_name"):
+        attr_names = train_set.attr_name
+    else:
+        attr_names = [f"attr_{i}" for i in range(len(attribute_frequencies))]
+
+    # Print the frequencies for inspection
+    print("Attribute Frequencies:")
+    for name, freq in zip(attr_names, attribute_frequencies):
+        print(f"{name}: {freq:.4f}")
+        
     print(cfg)
     print(train_tsfm)
 
@@ -107,6 +124,7 @@ def main(cfg, args):
 
     labels = train_set.label
     label_ratio = labels.mean(0) if cfg.LOSS.SAMPLE_WEIGHT else None
+    attr_freq = labels.mean(axis=0)  # fraction of samples with attribute=1
 
     if cfg.BACKBONE.TYPE == 'convnext':
         backbone = convnext_base()

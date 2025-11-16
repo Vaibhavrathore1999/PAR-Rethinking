@@ -6,7 +6,6 @@ __pycache__/
 exp_result/
 
 # Text or data files
-*.txt
 *.xml
 *.log
 *.wandb
