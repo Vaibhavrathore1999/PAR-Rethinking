@@ -1,6 +1,6 @@
-import os
+import os,sys
 os.environ['CUDA_VISIBLE_DEVICES'] = '3'
-
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 import pickle
 from collections import defaultdict
@@ -70,11 +70,13 @@ def main(cfg, args):
     # --- Start: Attribute Frequency Calculation ---
     all_labels = train_set.label
     attribute_frequencies = np.mean(all_labels, axis=0)
+    # --- Attribute-to-Name Mapping ---
+    attr_names = train_set.attr_id  # already correctly loaded from dataset
+    attr_mapping = {idx: name for idx, name in enumerate(attr_names)}
 
-    if hasattr(train_set, "attr_name"):
-        attr_names = train_set.attr_name
-    else:
-        attr_names = [f"attr_{i}" for i in range(len(attribute_frequencies))]
+    # print("\nAttribute Index → Name Mapping:")
+    # for idx, name in attr_mapping.items():
+    #     print(f"{idx}: {name}")
 
     print("Attribute Frequencies:")
     for name, freq in zip(attr_names, attribute_frequencies):
@@ -212,7 +214,7 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
 
         lr = optimizer.param_groups[1]['lr']
 
-        train_loss, train_gt, train_probs, train_imgs, train_logits, train_loss_mtr = batch_trainer(
+        train_loss, train_gt, train_probs, train_imgs_batched, train_logits, train_loss_mtr = batch_trainer(
             cfg,
             args=args,
             epoch=e,
@@ -223,8 +225,9 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
             loss_w=loss_w,
             scheduler=lr_scheduler if cfg.TRAIN.LR_SCHEDULER.TYPE == 'annealing_cosine' else None,
         )
+        train_imgs = [img for batch in train_imgs_batched for img in batch]
 
-        valid_loss, valid_gt, valid_probs, valid_imgs, valid_logits, valid_loss_mtr = valid_trainer(
+        valid_loss, valid_gt, valid_probs, valid_imgs_batched, valid_logits, valid_loss_mtr = valid_trainer(
             cfg,
             args=args,
             epoch=e,
@@ -233,6 +236,7 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
             criterion=criterion,
             loss_w=loss_w
         )
+        valid_imgs = [img for batch in valid_imgs_batched for img in batch]
 
         if cfg.TRAIN.LR_SCHEDULER.TYPE == 'plateau':
             lr_scheduler.step(metrics=valid_loss)
@@ -306,13 +310,13 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
             'valid_result': valid_result,
             'train_gt': train_gt, 'train_probs': train_probs,
             'valid_gt': valid_gt, 'valid_probs': valid_probs,
-            'train_imgs': train_imgs, 'valid_imgs': valid_imgs
+            'train_imgs': train_imgs, 'valid_imgs': valid_imgs,
         }
 
         with open(result_path, 'wb') as f:
             pickle.dump(result_list, f)
-
-
+    
+    best_valid_result.imgs = result_list[best_epoch]['valid_imgs']
     # --- Start: Failure Analysis and Visualization (runs after training finishes) ---
     if best_valid_result is not None:
         print("\n--- Attribute Performance Analysis (from best epoch) ---")
@@ -345,6 +349,42 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
         print(f"\nAnalysis plot saved to: {plot_save_path}")
         # plt.show() # Uncomment if you want to display the plot interactively
     # --- End: Failure Analysis and Visualization ---
+    
+    # --- Start: Failure Analysis and Visualization (runs after training finishes) ---
+    # --- Start: Misclassified Image Extraction ---
+    print("\n--- Saving misclassified images per attribute ---")
+
+    save_dir = os.path.join(log_dir, "attribute_errors")
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Convert tensors to numpy arrays
+    valid_gt_np = np.array(result_list[best_epoch]['valid_gt'])
+    valid_probs_np = np.array(result_list[best_epoch]['valid_probs'])
+    image_names = result_list[best_epoch]['valid_imgs']
+
+    # Check shapes
+    assert len(image_names) == len(valid_gt_np)
+
+    for idx, name in enumerate(attr_names):
+        errors = []
+
+        for i in range(len(valid_gt_np)):
+            gt = valid_gt_np[i][idx]
+            pred = 1 if valid_probs_np[i][idx] >= 0.5 else 0
+
+            if pred != gt:   # incorrect prediction
+                errors.append(image_names[i])
+
+        txt_path = os.path.join(save_dir, f"{name}.txt")
+
+        with open(txt_path, "w") as f:
+            for img in errors:
+                f.write(f"{img}\n")
+
+        print(f"{name}: {len(errors)} errors saved → {txt_path}")
+
+    print("--- Misclassification Extraction Completed ---")
+    # --- End: Misclassified Image Extraction ---
 
 
     return maximum, best_epoch

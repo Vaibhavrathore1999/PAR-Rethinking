@@ -115,5 +115,3 @@ class Network(nn.Module):
         
         return [x],label
     
-    
-    
