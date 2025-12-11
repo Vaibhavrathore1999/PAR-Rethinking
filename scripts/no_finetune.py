@@ -1,13 +1,13 @@
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
-
+import os,sys
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 import pickle
 from collections import defaultdict
 from datetime import datetime
 
 import numpy as np
-# from torch.utils.tensorboard import SummaryWriter 
+import matplotlib.pyplot as plt  # Added for plotting
 import shutil
 from configs import cfg, update_config
 from dataset.augmentation import get_transform
@@ -48,15 +48,7 @@ def main(cfg, args):
     save_model_path = os.path.join(model_dir, f'ckpt_max_{time_str()}.pth')
 
     # Initialize wandb
-    wandb.init(project="pedestrian_attribute_recognition", config=cfg) 
-    # wandb.run.name = cfg.NAME # Optional: Set run name
-
-    # writer = None # No longer needed if using wandb instead of SummaryWriter
-    # if cfg.VIS.TENSORBOARD.ENABLE:
-    #
-    #     current_time = datetime.now().strftime('%b%d_%H-%M-%S')
-    #     writer_dir = os.path.join(exp_dir, cfg.NAME, 'runs', current_time)
-    #     writer = SummaryWriter(log_dir=writer_dir)
+    wandb.init(project="pedestrian_attribute_recognition", config=cfg)
 
     if cfg.REDIRECTOR:
         print('redirector stdout')
@@ -74,24 +66,23 @@ def main(cfg, args):
 
     valid_set = PedesAttr(cfg=cfg, split=cfg.DATASET.VAL_SPLIT, transform=valid_tsfm,
                             target_transform=cfg.DATASET.TARGETTRANSFORM)
-    # Get all labels from the training set
+
+    # --- Start: Attribute Frequency Calculation ---
     all_labels = train_set.label
-
-    # Calculate the frequency of each attribute
-    # This gives the percentage of positive samples for each attribute
     attribute_frequencies = np.mean(all_labels, axis=0)
+    # --- Attribute-to-Name Mapping ---
+    attr_names = train_set.attr_id  # already correctly loaded from dataset
+    attr_mapping = {idx: name for idx, name in enumerate(attr_names)}
 
-    # Get attribute names if available
-    if hasattr(train_set, "attr_name"):
-        attr_names = train_set.attr_name
-    else:
-        attr_names = [f"attr_{i}" for i in range(len(attribute_frequencies))]
+    # print("\nAttribute Index → Name Mapping:")
+    # for idx, name in attr_mapping.items():
+    #     print(f"{idx}: {name}")
 
-    # Print the frequencies for inspection
     print("Attribute Frequencies:")
     for name, freq in zip(attr_names, attribute_frequencies):
         print(f"{name}: {freq:.4f}")
-        
+    # --- End: Attribute Frequency Calculation ---
+
     print(cfg)
     print(train_tsfm)
 
@@ -124,11 +115,18 @@ def main(cfg, args):
 
     labels = train_set.label
     label_ratio = labels.mean(0) if cfg.LOSS.SAMPLE_WEIGHT else None
-    attr_freq = labels.mean(axis=0)  # fraction of samples with attribute=1
 
     if cfg.BACKBONE.TYPE == 'convnext':
         backbone = convnext_base()
         c_output = 1024
+    elif cfg.BACKBONE.TYPE == 'resnet18':
+        backbone = resnet.resnet18(pretrained=True)
+        c_output = 512
+        backbone.fc = torch.nn.Identity()
+
+        # freeze all backbone layers (no fine-tuning)
+        for param in backbone.parameters():
+            param.requires_grad = False
     else:
         backbone, c_output = build_backbone(cfg.BACKBONE.TYPE, cfg.BACKBONE.MULTISCALE)
 
@@ -146,12 +144,18 @@ def main(cfg, args):
         sample_weight=label_ratio, scale=cfg.CLASSIFIER.SCALE, size_sum=cfg.LOSS.SIZESUM, tb_writer=None) # tb_writer=None
     criterion = criterion.cuda()
 
-    param_groups = [{'params': model.module.backbone.parameters(),
-                       'lr': cfg.TRAIN.LR_SCHEDULER.LR_FT,
-                       'weight_decay': cfg.TRAIN.OPTIMIZER.WEIGHT_DECAY},
-                   {'params': model.module.classifier.parameters(),
-                       'lr': cfg.TRAIN.LR_SCHEDULER.LR_NEW,
-                       'weight_decay': cfg.TRAIN.OPTIMIZER.WEIGHT_DECAY}]
+    # param_groups = [{'params': model.module.backbone.parameters(),
+    #                    'lr': cfg.TRAIN.LR_SCHEDULER.LR_FT,
+    #                    'weight_decay': cfg.TRAIN.OPTIMIZER.WEIGHT_DECAY},
+    #                {'params': model.module.classifier.parameters(),
+    #                    'lr': cfg.TRAIN.LR_SCHEDULER.LR_NEW,
+    #                    'weight_decay': cfg.TRAIN.OPTIMIZER.WEIGHT_DECAY}]
+    # -------- Optimizer: ONLY classifier parameters -------- #
+    param_groups = [
+        {'params': model.module.classifier.parameters(),
+        'lr': cfg.TRAIN.LR_SCHEDULER.LR_NEW,
+        'weight_decay': cfg.TRAIN.OPTIMIZER.WEIGHT_DECAY}
+    ]
 
     if cfg.TRAIN.OPTIMIZER.TYPE.lower() == 'sgd':
         optimizer = torch.optim.SGD(param_groups, momentum=cfg.TRAIN.OPTIMIZER.MOMENTUM)
@@ -198,7 +202,10 @@ def main(cfg, args):
                                  lr_scheduler=lr_scheduler,
                                  path=save_model_path,
                                  loss_w=loss_weight,
-                                 tb_writer=None) # Set tb_writer to None
+                                 tb_writer=None,
+                                 log_dir=log_dir,  # Pass log_dir for saving the plot
+                                 attribute_frequencies=attribute_frequencies, # Pass frequencies
+                                 attr_names=attr_names) # Pass names
 
     if args.local_rank == 0:
         print(f'{cfg.NAME},  best_metrc : {best_metric} in epoch{epoch}')
@@ -206,9 +213,10 @@ def main(cfg, args):
     wandb.finish() # Finish the wandb run
 
 def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, criterion, optimizer, lr_scheduler,
-            path, loss_w, tb_writer): # tb_writer is no longer used, but keeping for compatibility
+            path, loss_w, tb_writer, log_dir, attribute_frequencies, attr_names):
     maximum = float(-np.inf)
     best_epoch = 0
+    best_valid_result = None # To store metrics from the best epoch
 
     result_list = defaultdict()
 
@@ -220,7 +228,7 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
 
         lr = optimizer.param_groups[1]['lr']
 
-        train_loss, train_gt, train_probs, train_imgs, train_logits, train_loss_mtr = batch_trainer(
+        train_loss, train_gt, train_probs, train_imgs_batched, train_logits, train_loss_mtr = batch_trainer(
             cfg,
             args=args,
             epoch=e,
@@ -231,8 +239,9 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
             loss_w=loss_w,
             scheduler=lr_scheduler if cfg.TRAIN.LR_SCHEDULER.TYPE == 'annealing_cosine' else None,
         )
+        train_imgs = [img for batch in train_imgs_batched for img in batch]
 
-        valid_loss, valid_gt, valid_probs, valid_imgs, valid_logits, valid_loss_mtr = valid_trainer(
+        valid_loss, valid_gt, valid_probs, valid_imgs_batched, valid_logits, valid_loss_mtr = valid_trainer(
             cfg,
             args=args,
             epoch=e,
@@ -241,6 +250,7 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
             criterion=criterion,
             loss_w=loss_w
         )
+        valid_imgs = [img for batch in valid_imgs_batched for img in batch]
 
         if cfg.TRAIN.LR_SCHEDULER.TYPE == 'plateau':
             lr_scheduler.step(metrics=valid_loss)
@@ -252,18 +262,10 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
 
         train_result = get_pedestrian_metrics(train_gt, train_probs, index=None, cfg=cfg)
         valid_result = get_pedestrian_metrics(valid_gt, valid_probs, index=None, cfg=cfg)
-        # --- Individual Attribute Accuracy Analysis ---
+
         attr_accuracies = valid_result.label_acc
         attr_f1 = valid_result.label_f1
-        attr_pos_recall = valid_result.label_pos_recall
-        attr_neg_recall = valid_result.label_neg_recall
         attr_ma = valid_result.label_ma
-
-        # Try to get attribute names from dataset
-        if hasattr(train_loader.dataset, "attr_name"):
-            attr_names = train_loader.dataset.attr_name
-        else:
-            attr_names = [f"attr_{i}" for i in range(len(attr_accuracies))]
 
         # Log per-attribute metrics to wandb
         for name, acc, f1, ma in zip(attr_names, attr_accuracies, attr_f1, attr_ma):
@@ -303,21 +305,9 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
                 "learning_rate": lr,
                 "train_loss": train_loss,
                 "train_ma": train_result.ma,
-                "train_label_f1": np.mean(train_result.label_f1),
-                "train_pos_recall": np.mean(train_result.label_pos_recall),
-                "train_neg_recall": np.mean(train_result.label_neg_recall),
-                "train_instance_acc": train_result.instance_acc,
-                "train_instance_prec": train_result.instance_prec,
-                "train_instance_recall": train_result.instance_recall,
-                "train_instance_f1": train_result.instance_f1,
                 "valid_loss": valid_loss,
                 "valid_ma": valid_result.ma,
-                "valid_label_f1": np.mean(valid_result.label_f1),
-                "valid_pos_recall": np.mean(valid_result.label_pos_recall),
-                "valid_neg_recall": np.mean(valid_result.label_neg_recall),
                 "valid_instance_acc": valid_result.instance_acc,
-                "valid_instance_prec": valid_result.instance_prec,
-                "valid_instance_recall": valid_result.instance_recall,
                 "valid_instance_f1": valid_result.instance_f1,
             })
 
@@ -325,21 +315,145 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
         if cur_metric > maximum:
             maximum = cur_metric
             best_epoch = e
+            best_valid_result = valid_result # Save the best result object
             save_ckpt(model, path, e, maximum)
-            # You might want to log the best model to wandb
-            # wandb.save(path) # This saves the file to wandb servers
+
 
         result_list[e] = {
-            'train_result': train_result,  # 'train_map': train_map,
-            'valid_result': valid_result,  # 'valid_map': valid_map,
+            'train_result': train_result,
+            'valid_result': valid_result,
             'train_gt': train_gt, 'train_probs': train_probs,
             'valid_gt': valid_gt, 'valid_probs': valid_probs,
-            'train_imgs': train_imgs, 'valid_imgs': valid_imgs
+            'train_imgs': train_imgs, 'valid_imgs': valid_imgs,
         }
 
- 
         with open(result_path, 'wb') as f:
             pickle.dump(result_list, f)
+    
+    best_valid_result.imgs = result_list[best_epoch]['valid_imgs']
+    # --- Start: Failure Analysis and Visualization (runs after training finishes) ---
+    if best_valid_result is not None:
+        print("\n--- Attribute Performance Analysis (from best epoch) ---")
+        
+        # Combine metrics for sorting
+        best_acc = best_valid_result.label_acc
+        analysis_data = sorted(zip(attr_names, best_acc, attribute_frequencies), key=lambda x: x[1])
+
+        print(f"{'Attribute':<25} | {'Accuracy':<10} | {'Frequency':<10}")
+        print("-" * 55)
+        for name, acc, freq in analysis_data:
+            print(f"{name:<25} | {acc:<10.4f} | {freq:<10.4f}")
+
+        # Create and save the scatter plot
+        plt.figure(figsize=(15, 10))
+        plt.scatter(attribute_frequencies, best_acc, alpha=0.7)
+
+        # Add labels for each point
+        for i, name in enumerate(attr_names):
+            plt.text(attribute_frequencies[i], best_acc[i], name, fontsize=9, ha='right')
+
+        plt.xlabel("Attribute Frequency in Training Set")
+        plt.ylabel("Per-Attribute Accuracy (from best epoch)")
+        plt.title("Attribute Frequency vs. Model Accuracy")
+        plt.grid(True)
+        plt.xscale('log') # Use log scale for frequency if it's heavily skewed
+        
+        plot_save_path = os.path.join(log_dir, 'frequency_vs_accuracy.png')
+        plt.savefig(plot_save_path)
+        print(f"\nAnalysis plot saved to: {plot_save_path}")
+        # plt.show() # Uncomment if you want to display the plot interactively
+    # --- End: Failure Analysis and Visualization ---
+    
+    # --- Start: Failure Analysis and Visualization (runs after training finishes) ---
+    # # --- Start: Misclassified Image Extraction ---
+    # print("\n--- Saving misclassified images per attribute ---")
+
+    # save_dir = os.path.join(log_dir, "attribute_errors")
+    # os.makedirs(save_dir, exist_ok=True)
+
+    # # Convert tensors to numpy arrays
+    # valid_gt_np = np.array(result_list[best_epoch]['valid_gt'])
+    # valid_probs_np = np.array(result_list[best_epoch]['valid_probs'])
+    # image_names = result_list[best_epoch]['valid_imgs']
+
+    # # Check shapes
+    # assert len(image_names) == len(valid_gt_np)
+
+    # for idx, name in enumerate(attr_names):
+    #     errors = []
+
+    #     for i in range(len(valid_gt_np)):
+    #         gt = valid_gt_np[i][idx]
+    #         pred = 1 if valid_probs_np[i][idx] >= 0.5 else 0
+
+    #         if pred != gt:   # incorrect prediction
+    #             errors.append(image_names[i])
+
+    #     txt_path = os.path.join(save_dir, f"{name}.txt")
+
+    #     with open(txt_path, "w") as f:
+    #         for img in errors:
+    #             f.write(f"{img}\n")
+
+    #     print(f"{name}: {len(errors)} errors saved → {txt_path}")
+
+    # print("--- Misclassification Extraction Completed ---")
+    # # --- End: Misclassified Image Extraction ---
+    print("\n--- Saving FP / FN / TP / TN per attribute ---")
+
+    save_dir = os.path.join(log_dir, "attribute_errors")
+    os.makedirs(save_dir, exist_ok=True)
+
+    valid_gt_np = np.array(result_list[best_epoch]['valid_gt'])
+    valid_probs_np = np.array(result_list[best_epoch]['valid_probs'])
+    image_names = result_list[best_epoch]['valid_imgs']
+
+    assert len(image_names) == len(valid_gt_np)
+
+    summary_stats = {}
+
+    for idx, name in enumerate(attr_names):
+
+        FP, FN, TP, TN = [], [], [], []
+
+        for i in range(len(valid_gt_np)):
+            gt = int(valid_gt_np[i][idx])
+            pred = 1 if valid_probs_np[i][idx] >= 0.5 else 0
+            img = image_names[i]
+
+            if pred == 1 and gt == 0:
+                FP.append(img)
+            elif pred == 0 and gt == 1:
+                FN.append(img)
+            elif pred == 1 and gt == 1:
+                TP.append(img)
+            elif pred == 0 and gt == 0:
+                TN.append(img)
+
+        # Save files
+        def write_list(filename, items):
+            with open(os.path.join(save_dir, filename), "w") as f:
+                for x in items:
+                    f.write(f"{x}\n")
+
+        write_list(f"{name}_fp.txt", FP)
+        write_list(f"{name}_fn.txt", FN)
+        write_list(f"{name}_tp.txt", TP)
+        write_list(f"{name}_tn.txt", TN)
+
+        # Save counts
+        summary_stats[name] = {
+            "FP": len(FP),
+            "FN": len(FN),
+            "TP": len(TP),
+            "TN": len(TN),
+        }
+
+        print(f"{name:<25} → FP: {len(FP):4d} | FN: {len(FN):4d} | TP: {len(TP):4d} | TN: {len(TN):4d}")
+
+    print("\n--- FP / FN extraction completed ---")
+
+
 
     return maximum, best_epoch
 

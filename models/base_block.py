@@ -76,7 +76,7 @@ class Classifier(nn.Module):
         self.nattr = nattr
         self.c = c_in
         
-        if bb == 'resnet50':
+        if bb == 'resnet50' or self.bb=="resnet18":
             self.separte = nn.Sequential(nn.Linear(c_in, nattr*c_in), nn.BatchNorm1d(nattr*c_in), nn.ReLU(nattr*c_in))
         else:
             self.separte = nn.Sequential(nn.Linear(c_in, nattr*c_in), nn.GELU())
@@ -85,7 +85,7 @@ class Classifier(nn.Module):
 
     def forward(self, x, label=None, mode='train'):
         
-        if self.bb == 'resnet50':
+        if self.bb == 'resnet50' or self.bb=="resnet18":
             x = rearrange(x, 'n c h w ->n (h w) c')
             x = reduce(x,'n k c ->n c', reduction = 'mean')
         

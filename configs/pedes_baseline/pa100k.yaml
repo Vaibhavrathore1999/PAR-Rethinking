@@ -1,4 +1,4 @@
-NAME: 'convnext_base_pa100k_baseline'
+NAME: 'resnet18_pa100k_baseline'
 
 DATASET:
   ROOT: '/janaki/backup/users/student/pg/pg23/vaibhav.rathore/datasets/PA-100K'
@@ -23,10 +23,11 @@ BACKBONE:
 #  TYPE: 'tresnetM'
 #  TYPE: 'swin_s'
   # TYPE: 'vit_s'
-  TYPE: 'convnext_base'
+  # TYPE: 'convnext_base'
+  TYPE: 'resnet18'
   # TYPE: 'vit_b'
 #  TYPE: 'resnet34'
-#  TYPE: 'resnet18': 512,
+  # TYPE: 'resnet18': 512,
 #  TYPE: 'resnet50': 2048,
 #  TYPE: 'resnet101': 2048,
 #  TYPE: 'tresnet': 2432,

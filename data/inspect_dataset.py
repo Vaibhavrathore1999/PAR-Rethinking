@@ -1,7 +1,7 @@
 import pickle
 import os
 
-pkl_file_path = '/users/student/pg/pg23/vaibhav.rathore/PAR/Rethinking_of_PAR/data/VRLChallenge_2/dataset_all.pkl' # Adjust this path if needed
+pkl_file_path = '/users/student/pg/pg23/vaibhav.rathore/PAR/Rethinking_of_PAR/data/PA100k/dataset_all.pkl' # Adjust this path if needed
 
 if not os.path.exists(pkl_file_path):
     print(f"Error: Pickle file not found at {pkl_file_path}")
@@ -50,3 +50,37 @@ else:
 
     except Exception as e:
         print(f"Error loading or inspecting pickle file: {e}")
+        
+import numpy as np
+
+print("\n--- Attribute Frequency Mapping ---")
+
+# Ensure both keys exist
+if 'label' not in data or 'attr_name' not in data:
+    print("Error: Missing 'label' or 'attr_name' in dataset")
+else:
+    labels = np.array(data['label'])       # shape: [num_samples, num_attributes]
+    attr_names = data['attr_name']         # list of attribute names
+
+    # Compute frequency for each attribute
+    frequencies = labels.mean(axis=0)      # mean of column = frequency of "1"s
+
+    if len(frequencies) != len(attr_names):
+        print("Error: label count and attribute-name count do not match!")
+    else:
+        print(f"Total attributes: {len(attr_names)}\n")
+
+        print("Index\tAttribute\t\tFrequency")
+        print("---------------------------------------------------")
+
+        for idx, (name, freq) in enumerate(zip(attr_names, frequencies)):
+            print(f"{idx}\t{name:20s}\t{freq:.4f}")
+
+        # Optional: Save to CSV for Google Sheets
+        save_path = "pa100k_attribute_frequencies.csv"
+        with open(save_path, "w") as f:
+            f.write("Index,Attribute,Frequency\n")
+            for idx, (name, freq) in enumerate(zip(attr_names, frequencies)):
+                f.write(f"{idx},{name},{freq:.6f}\n")
+
+        print(f"\nSaved table to: {save_path}")
