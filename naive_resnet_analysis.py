@@ -261,14 +261,15 @@ def finetune(train_df, val_df, num_attr, attr_groups, epochs, output_path):
     }, final_model_path)
     print(f"Final epoch model saved at {final_model_path} || Train Loss = {train_loss} || Val loss = {val_loss}")
 
-def evaluate_model(test_df, model_path, num_attr):
+def evaluate_model(test_df, model_path, num_attr, output_path):
     """
-    Evaluates the trained model on the test dataset.
+    Evaluates the trained model on the test dataset and performs failure analysis.
 
     Args:
         test_df (pd.DataFrame): DataFrame containing test data (image paths and labels).
         model_path (str): Path to the saved model checkpoint (.pth file).
         num_attr (int): Number of attributes/classes for the output layer.
+        output_path (str): Directory to save analysis results.
     """
     logging.info("\n--- Starting Model Evaluation on Test Set ---")
     
@@ -305,14 +306,7 @@ def evaluate_model(test_df, model_path, num_attr):
         logging.error(f"Error loading model state dict: {e}. Evaluation aborted.")
         return
 
-    # 5. Define Loss Function (for reporting loss, we can use the same criterion)
-    # Note: Weights are not strictly needed for evaluation but are required by the class constructor.
-    # We will pass dummy weights or the train weights to initialize it.
-    # Since we don't have the original train_dataset here, we'll initialize with arbitrary weights,
-    # as the loss is only used for reporting and not for gradient updates.
-    # A cleaner approach is to use standard BCEWithLogitsLoss for pure reporting.
-    
-    # Using a simple BCEWithLogitsLoss for test loss reporting
+    # 5. Define Loss Function (for reporting loss)
     test_criterion = nn.BCEWithLogitsLoss(reduction='mean')
 
     # 6. Run Evaluation Loop
@@ -321,9 +315,14 @@ def evaluate_model(test_df, model_path, num_attr):
     test_correct = 0
     test_total = 0 
     
+    # Lists to store results for analysis
+    all_preds = []
+    all_labels = []
+    all_img_paths = []
+
     print(f"TESTING PHASE on {len(test_dataset)} samples")
     with torch.no_grad():
-        for images, labels, _ in tqdm(test_loader):
+        for images, labels, img_paths in tqdm(test_loader):
             images, labels = images.to(device), labels.to(device)
             outputs = model(images)
             
@@ -332,9 +331,16 @@ def evaluate_model(test_df, model_path, num_attr):
             running_test_loss += loss.item()
             
             # Calculate metrics
-            predicted = (torch.sigmoid(outputs) >= 0.5).float()
+            probs = torch.sigmoid(outputs)
+            predicted = (probs >= 0.5).float()
+            
             test_total += labels.numel() # Total number of attribute predictions
             test_correct += (predicted == labels).sum().item() # Total correct attribute predictions
+
+            # Store for analysis
+            all_preds.append(predicted.cpu().numpy())
+            all_labels.append(labels.cpu().numpy())
+            all_img_paths.extend(img_paths)
 
     # 7. Calculate Final Metrics
     test_loss = running_test_loss / len(test_loader)
@@ -346,6 +352,50 @@ def evaluate_model(test_df, model_path, num_attr):
         f"\nTest Accuracy (per attribute): {test_accuracy:.2f}%"
         f"\n--------------------------"
     )
+
+    # 8. Failure Analysis (FP/FN/TP/TN extraction)
+    logging.info("\n--- Saving FP / FN / TP / TN per attribute ---")
+    save_dir = os.path.join(output_path, "attribute_errors")
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Concatenate results
+    all_preds = np.vstack(all_preds)
+    all_labels = np.vstack(all_labels)
+    
+    # Get attribute names from dataframe columns (skipping the first column which is image path)
+    attr_names = test_df.columns[1:].tolist()
+
+    for idx, name in enumerate(attr_names):
+        FP, FN, TP, TN = [], [], [], []
+
+        for i in range(len(all_labels)):
+            gt = int(all_labels[i][idx])
+            pred = int(all_preds[i][idx])
+            img = all_img_paths[i]
+
+            if pred == 1 and gt == 0:
+                FP.append(img)
+            elif pred == 0 and gt == 1:
+                FN.append(img)
+            elif pred == 1 and gt == 1:
+                TP.append(img)
+            elif pred == 0 and gt == 0:
+                TN.append(img)
+
+        # Save files
+        def write_list(filename, items):
+            with open(os.path.join(save_dir, filename), "w") as f:
+                for x in items:
+                    f.write(f"{x}\n")
+
+        write_list(f"{name}_fp.txt", FP)
+        write_list(f"{name}_fn.txt", FN)
+        write_list(f"{name}_tp.txt", TP)
+        write_list(f"{name}_tn.txt", TN)
+
+        logging.info(f"{name:<25} → FP: {len(FP):4d} | FN: {len(FN):4d} | TP: {len(TP):4d} | TN: {len(TN):4d}")
+
+    logging.info("\n--- FP / FN extraction completed ---")
 
 if __name__ == "__main__":
     epochs = 70
@@ -379,7 +429,7 @@ if __name__ == "__main__":
     train_csv = "/janaki/backup/users/student/pg/pg23/vaibhav.rathore/datasets/PA-100K/train.csv"
     val_csv = "/janaki/backup/users/student/pg/pg23/vaibhav.rathore/datasets/PA-100K/val.csv"
     test_csv = "/janaki/backup/users/student/pg/pg23/vaibhav.rathore/datasets/PA-100K/test.csv" # New test CSV path
-    output_path = "/users/student/pg/pg23/vaibhav.rathore/PAR/Rethinking_of_PAR/exp_result"
+    output_path = "/users/student/pg/pg23/vaibhav.rathore/PAR/Rethinking_of_PAR/exp_result/naive_resnet18"
     
     # Ensure all necessary folders are created and logging is set up
     os.makedirs(output_path, exist_ok=True)
@@ -405,7 +455,7 @@ if __name__ == "__main__":
     best_model_path = os.path.join(output_path, "best_val_loss_model.pth")
     
     # Call the new evaluation function
-    evaluate_model(test_df, best_model_path, num_attr)
+    evaluate_model(test_df, best_model_path, num_attr, output_path)
 
 # if __name__ == "__main__":
 #     epochs = 70

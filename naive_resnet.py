@@ -379,7 +379,7 @@ if __name__ == "__main__":
     train_csv = "/janaki/backup/users/student/pg/pg23/vaibhav.rathore/datasets/PA-100K/train.csv"
     val_csv = "/janaki/backup/users/student/pg/pg23/vaibhav.rathore/datasets/PA-100K/val.csv"
     test_csv = "/janaki/backup/users/student/pg/pg23/vaibhav.rathore/datasets/PA-100K/test.csv" # New test CSV path
-    output_path = "/users/student/pg/pg23/vaibhav.rathore/PAR/Rethinking_of_PAR/exp_result"
+    output_path = "/users/student/pg/pg23/vaibhav.rathore/PAR/Rethinking_of_PAR/exp_result/naive_resnet18"
     
     # Ensure all necessary folders are created and logging is set up
     os.makedirs(output_path, exist_ok=True)
@@ -387,7 +387,7 @@ if __name__ == "__main__":
         level = logging.INFO,
         format = "%(asctime)s [%(levelname)s] %(message)s",
         handlers = [
-            logging.FileHandler(os.path.join(output_path, "test_training.log"), mode="a"), # Append to existing log
+            logging.FileHandler(os.path.join(output_path, "anlaysis_training.log"), mode="a"), # Append to existing log
             logging.StreamHandler()
         ]
     )
